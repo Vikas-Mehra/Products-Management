@@ -363,7 +363,7 @@ Send [form-data](https://developer.mozilla.org/en-US/docs/Web/API/FormData)
   totalItems: {number, mandatory, comment: "Holds total number of items in the cart"},
   totalQuantity: {number, mandatory, comment: "Holds total number of quantity in the cart"},
   cancellable: {boolean, default: true},
-  status: {string, default: 'pending', enum[pending, completed, cancled]},
+  status: {string, default: 'pending', enum[pending, completed, cancelled]},
   deletedAt: {Date, when the document is deleted},
   isDeleted: {boolean, default: false},
   createdAt: {timestamp},
@@ -390,7 +390,7 @@ Send [form-data](https://developer.mozilla.org/en-US/docs/Web/API/FormData)
 - Make sure the user exist
 - Get order id in request body
 - Make sure the order belongs to the user
-- Make sure that only a cancellable order could be canceled. Else send an appropriate error message and response.
+- Make sure that only a cancellable order could be cancelled. Else send an appropriate error message and response.
 - **Response format**
   - _**On success**_ - Return HTTP status 200. Also return the updated order document. The response should be a JSON object like [this](#successful-response-structure)
   - _**On error**_ - Return a suitable error message with a valid HTTP status code. The response should be a JSON object like [this](#error-response-structure)

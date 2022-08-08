@@ -4,7 +4,7 @@ const productSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      lowercase: true, //Mandatory????
+      lowercase: true,
       required: true,
       unique: true,
       trim: true,
@@ -14,9 +14,15 @@ const productSchema = new mongoose.Schema(
 
     price: { type: Number, required: true, trim: true },
 
-    currencyId: { type: String, uppercase: true, default: "INR", trim: true },
+    currencyId: {
+      type: String,
+      required: true,
+      uppercase: true,
+      default: "INR",
+      trim: true,
+    },
 
-    currencyFormat: { type: String, default: "₹", trim: true },
+    currencyFormat: { type: String, required: true, default: "₹", trim: true },
 
     isFreeShipping: { type: Boolean, default: false },
 

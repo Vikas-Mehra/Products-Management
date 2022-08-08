@@ -9,7 +9,6 @@ const {
   isValidPrice,
   isValidInstallment,
   isValidImage,
-  isValidTitle, // !!!!!!!!!!!!!!!!
 } = require("../util/validator");
 
 //-------------------------------------------------------------------------
@@ -41,24 +40,13 @@ const createProduct = async (req, res) => {
       currencyId,
       currencyFormat,
     } = data;
-    // const currencyId = "INR";     // USD also.????
-    // const currencyFormat = "₹";   // $ also.????
 
-    // <title> Validation.
-    // <Title> of Product can be anything??????????? -- isValidTitle() Regex?
+    // <Title> of Product can be any Characters but must be Unique.
     if (!isValid(title)) {
       return res
         .status(400)
         .send({ status: false, message: "<title> is required." });
     }
-    // // Check if <title> already present in Database --> BELOW.
-    // const titleExist = await productModel.findOne({ title });
-    // if (titleExist) {
-    //   return res.status(400).send({
-    //     status: false,
-    //     message: `<title>: <${title}> already present in Database.`,
-    //   });
-    // }
 
     // <description> Validation.
     if (!isValid(description)) {
@@ -87,9 +75,6 @@ const createProduct = async (req, res) => {
         .status(400)
         .send({ status: false, message: "<availableSizes> is required." });
     }
-
-    // Postman -- ["s","m"] && [m,l] - Error.
-    // Form-Data - "M" - error :: M - works !!!!
     let invalidSizes = [];
     let sizes = availableSizes.split(",").map((s) => {
       if (!isValidSize(s.trim().toUpperCase())) {
@@ -97,7 +82,6 @@ const createProduct = async (req, res) => {
       }
       return s.trim().toUpperCase();
     });
-
     if (invalidSizes.length) {
       return res.status(400).send({
         status: false,
@@ -113,54 +97,88 @@ const createProduct = async (req, res) => {
       });
     }
     sizes = [...new Set(sizes)]; // Only Unique <sizes>.
-    console.log(sizes);
     data["availableSizes"] = sizes;
-    // data["availableSizes"] = { $all: sizes };
 
-    // <style> Validation.
+    // <style> Not Mandatory.
     if (style)
       if (!isValid(style)) {
-        // <style> Not Mandatory??
         return res
           .status(400)
           .send({ status: false, message: "<style> is invalid." });
       }
 
-    // <installments> Validation. !!!!!!!!!!!! Max number =[1,99].?? ~~~~~~~~~
+    // <installments> Not Mandatory.
     if (installments)
       if (!isValidInstallment(installments)) {
-        // <installments> Not Mandatory??
         return res.status(400).send({
           status: false,
           message: "<installments> can be a Number between 1-99 only.",
         });
       }
 
-    // <isFreeShipping> Validation.
+    // <isFreeShipping> default(false) Validation.
     if (isFreeShipping)
       if (isFreeShipping != "true" && isFreeShipping != "false") {
-        // if (typeof isFreeShipping != "boolean") {
-        console.log(typeof isFreeShipping);
-
         return res.status(400).send({
           status: false,
           message: "<isFreeShipping> must be either <true> OR <false>.",
         });
       }
 
-    // const currencyFormat = "INR";     // USD also.????
-    if (currencyFormat && currencyFormat != "INR" && currencyFormat != "USD") {
+    // <currencyId>(Mandatory).
+    if (!isValid(currencyId)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "<currencyId> is required." });
+    }
+    //<currencyFormat>(Mandatory).
+    if (!isValid(currencyFormat)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "<currencyFormat> is required." });
+    }
+
+    // <currencyFormat> - Validations.
+    if (currencyFormat != "₹" && currencyFormat != "$") {
       return res.status(400).send({
         status: false,
-        message: "<currencyFormat> must be either <INR> OR <USD>.",
+        message: "<currencyFormat> must be either <₹> OR <$>.",
+      });
+    }
+    if (currencyFormat == "₹" && currencyId != "INR") {
+      return res.status(400).send({
+        status: false,
+        message:
+          "If <currencyFormat> is <₹> then <currencyId> must be <INR> only.",
+      });
+    }
+    if (currencyFormat == "$" && currencyId != "USD") {
+      return res.status(400).send({
+        status: false,
+        message:
+          "If <currencyFormat> is <$> then <currencyId> must be <USD> only.",
       });
     }
 
-    // const currencyFormat = "₹";   // $ also.????
-    if (currencyId && currencyId != "$" && currencyId != "₹") {
+    // <currencyId> - Validations.
+    if (currencyId != "INR" && currencyId != "USD") {
       return res.status(400).send({
         status: false,
-        message: "<currencyId> must be either <₹> OR <$>.",
+        message: "<currencyId> must be either <INR> OR <USD>.",
+      });
+    }
+    if (currencyId == "INR" && currencyFormat != "₹") {
+      return res.status(400).send({
+        status: false,
+        message:
+          "If <currencyId> is <INR> then <currencyFormat> must be <₹> only.",
+      });
+    }
+    if (currencyId && currencyId == "USD" && currencyFormat != "$") {
+      return res.status(400).send({
+        status: false,
+        message:
+          "If <currencyId> is <USD> then <currencyFormat> must be <$> only.",
       });
     }
 
@@ -187,7 +205,7 @@ const createProduct = async (req, res) => {
       let uploadedFileURL = await uploadFile(files[0]);
       data.productImage = uploadedFileURL;
     }
-    // Error: If <productImage> not in Request Body (form-data).
+    // Send error: If <productImage> not given in Request Body(form-data).
     else {
       return res.status(400).send({
         message: "<productImage> File is required.",
@@ -200,9 +218,10 @@ const createProduct = async (req, res) => {
     const createProduct = await productModel.create(data);
     return res.status(201).send({
       status: true,
-      message: "Product created successfully.",
+      message: "Success",
       data: createProduct,
     });
+    // message: "Product created successfully.",
   } catch (error) {
     return res.status(500).send({ status: false, message: error.message });
   }
@@ -214,10 +233,6 @@ const createProduct = async (req, res) => {
 //-------------------------------------------------------------------------
 
 const getProducts = async (req, res) => {
-  // ERRORS:
-  // 1. All Queries(LHS) - Key-present but empty-value(RHS) => Fetching all products.
-  // 2. size.toUpperCase() => flexibility.
-  // 3. multiple size in Query.
   try {
     console.log("\n getProducts API.");
 
@@ -227,25 +242,19 @@ const getProducts = async (req, res) => {
 
     //- **Filters**
     //- Size (The key for this filter will be 'size').
-    if (size) {
-      //@@@@@@@@@@@@@@@
+    if (typeof size != "undefined") {
       if (!isValid(size)) {
-        // Not Working??????????
         return res
           .status(400)
           .send({ status: false, message: "Provide size." });
       }
-
-      // Postman -- ["s","m"] - Error.
       let invalidSizes = [];
       const availSizes = size.split(",").map((s) => {
-        // s.trim().toUpperCase();
         if (!isValidSize(s.trim().toUpperCase())) {
           invalidSizes.push(s);
         }
         return s.trim().toUpperCase();
       });
-
       if (invalidSizes.length) {
         return res.status(400).send({
           status: false,
@@ -264,13 +273,7 @@ const getProducts = async (req, res) => {
     }
 
     //- Product name (The key for this filter will be 'name'). You should return all the products with name containing the <substring> recieved in this filter.
-    if (name) {
-      // if (!isValidTitle(name)) {
-      //   return res.status(400).send({
-      //     status: false,
-      //     message: `<name>-Params should be Alphabets & Whitespace's Only.`,
-      //   });
-      // }
+    if (typeof name != "undefined") {
       if (!isValid(name)) {
         return res.status(400).send({
           status: false,
@@ -283,12 +286,12 @@ const getProducts = async (req, res) => {
     //- Price : greater than or less than a specific value. The keys are 'priceGreaterThan' and 'priceLessThan'.
 
     // **_NOTE:_** For price filter request could contain both or any one of the keys. For example the query in the request could look like { priceGreaterThan: 500, priceLessThan: 2000 } or just { priceLessThan: 1000 } ).
-    if (priceGreaterThan && !isValid(priceGreaterThan))
+    if (typeof priceGreaterThan != "undefined" && !isValid(priceGreaterThan))
       return res
         .status(400)
         .send({ status: false, message: "Provide <priceGreaterThan>." });
 
-    if (priceLessThan && !isValid(priceLessThan))
+    if (typeof priceLessThan != "undefined" && !isValid(priceLessThan))
       return res
         .status(400)
         .send({ status: false, message: "Provide <priceLessThan>." });
@@ -304,8 +307,7 @@ const getProducts = async (req, res) => {
     //- **Sort**
     //-Sorted by product price in ascending or descending. The key value pair will look like {priceSort : 1} or {priceSort : -1}
     // _eg_ /products?size=XL&name=Nit%20grit
-    //~~~~~~~~~~~~~~ ? name = Nit %20 grit
-    if (priceSort) {
+    if (typeof priceSort != "undefined") {
       if (priceSort != "1" && priceSort != "-1") {
         return res.status(400).send({
           status: false,
@@ -321,12 +323,14 @@ const getProducts = async (req, res) => {
           return res
             .status(404)
             .send({ status: false, message: "No products found." });
+        // message: "Fetched Products in Ascending Order of Price.",
         return res.status(200).send({
           status: true,
-          message: "Fetched Products in Ascending Order of Price.",
+          message: "Success",
           data: documents,
         });
       }
+
       if (priceSort == -1) {
         const documents = await productModel
           .find(filterQuery)
@@ -335,25 +339,28 @@ const getProducts = async (req, res) => {
           return res
             .status(404)
             .send({ status: false, message: "No products found." });
+        // message: "Fetched Products in Descending Order of Price.",
         return res.status(200).send({
           status: true,
-          message: "Fetched Products in Descending Order of Price.",
+          message: "Success",
           data: documents,
         });
       }
     }
+
     //- **Response format**
     //- **On success** - Return HTTP status 200. Also return the product documents.
     const documents = await productModel.find(filterQuery);
     //- **On error** - Return a suitable error message with a valid HTTP status code.
     if (!documents.length) {
       return res
-        .status(404) // Required?????
+        .status(404)
         .send({ status: false, message: "No products found." });
     }
+    // message: "Fetched Products Successfully.",
     return res.status(200).send({
       status: true,
-      message: "Fetched Products Successfully.",
+      message: "Success",
       data: documents,
     });
   } catch (error) {
@@ -377,17 +384,6 @@ const getProductById = async (req, res) => {
         message: `<productId> in Params: <${productIdParams}> NOT a Valid Mongoose Object ID.`,
       });
     }
-    //~~~~~~~~~~ Generic-message.
-    // const findProduct = await productModel.findOne({
-    //   _id: productIdParams,
-    //   isDeleted: false,
-    // });
-    // if (!findProduct) {
-    //   return res.status(404).send({
-    //     status: false,
-    //     message: `PRODUCT with ID: <${productIdParams}> NOT Found in Database( OR already deleted).`,
-    //   });
-    // }
 
     // Specific-message.
     const findProduct = await productModel.findById(productIdParams);
@@ -407,9 +403,10 @@ const getProductById = async (req, res) => {
     //- **On success** - Return HTTP status 200. Also return the product documents.
     return res.status(200).send({
       status: true,
-      message: "Fetched Product by ID.",
+      message: "Success",
       data: findProduct,
     });
+    // message: "Fetched Product by ID.",
   } catch (error) {
     return res.status(500).send({ status: false, message: error.message });
   }
@@ -447,10 +444,18 @@ const updateProductById = async (req, res) => {
     let data = req.body;
     const files = req.files;
 
-    if (!isValidRequestBody(data) && !files.length) {
-      return res
-        .status(400)
-        .send({ status: false, message: "Request Body Empty." });
+    if (!isValidRequestBody(data)) {
+      if (!files) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Request Body Empty." });
+      }
+      if (files && typeof files[0] == "undefined") {
+        return res.status(400).send({
+          status: false,
+          message: "Please provide Image-file to upload.",
+        });
+      }
     }
 
     // Destructuring Request-Body.
@@ -465,11 +470,9 @@ const updateProductById = async (req, res) => {
       currencyId,
       currencyFormat,
     } = data;
-    // const currencyId = "INR";     // USD also.????
-    // const currencyFormat = "₹";   // $ also.????
 
     // <title> Validation.
-    if (title) {
+    if (typeof title != "undefined") {
       if (!isValid(title)) {
         return res
           .status(400)
@@ -478,7 +481,7 @@ const updateProductById = async (req, res) => {
     }
 
     // <description> Validation.
-    if (description) {
+    if (typeof description != "undefined") {
       if (!isValid(description)) {
         return res
           .status(400)
@@ -487,7 +490,7 @@ const updateProductById = async (req, res) => {
     }
 
     // <price> Validation.
-    if (price) {
+    if (typeof price != "undefined") {
       if (!isValid(price)) {
         return res
           .status(400)
@@ -503,15 +506,12 @@ const updateProductById = async (req, res) => {
     }
 
     // <availableSizes> Validation.
-    if (availableSizes) {
+    if (typeof availableSizes != "undefined") {
       if (!isValid(availableSizes)) {
         return res
           .status(400)
           .send({ status: false, message: "<availableSizes> is required." });
       }
-
-      // Postman -- ["s","m"] && [m,l] - Error.
-      // Form-Data - "M" - error :: M - works !!!!
       let invalidSizes = [];
       let sizes = availableSizes.split(",").map((s) => {
         if (!isValidSize(s.trim().toUpperCase())) {
@@ -519,7 +519,6 @@ const updateProductById = async (req, res) => {
         }
         return s.trim().toUpperCase();
       });
-
       if (invalidSizes.length) {
         return res.status(400).send({
           status: false,
@@ -536,20 +535,18 @@ const updateProductById = async (req, res) => {
       }
       sizes = [...new Set(sizes)]; // Only Unique <sizes>.
       data["availableSizes"] = sizes;
-      // data["availableSizes"] = { $all: sizes }; // Check!!!!!!!
     }
 
     // <style> Validation.
-    if (style)
+    if (typeof style != "undefined")
       if (!isValid(style)) {
-        // <style> Not Mandatory??
         return res
           .status(400)
           .send({ status: false, message: "<style> is invalid." });
       }
 
-    // <installments> Validation. !!!!!!!!!!!! Max number =[1,99].?? ~~~~~~~~~
-    if (installments)
+    // <installments> Validation.
+    if (typeof installments != "undefined")
       if (!isValidInstallment(installments)) {
         return res.status(400).send({
           status: false,
@@ -558,7 +555,7 @@ const updateProductById = async (req, res) => {
       }
 
     // <isFreeShipping> Validation.
-    if (isFreeShipping)
+    if (typeof isFreeShipping != "undefined")
       if (isFreeShipping != "true" && isFreeShipping != "false") {
         return res.status(400).send({
           status: false,
@@ -566,23 +563,83 @@ const updateProductById = async (req, res) => {
         });
       }
 
-    // const currencyFormat = "INR";     // USD also.????
-    if (currencyFormat && currencyFormat != "INR" && currencyFormat != "USD") {
+    // <currencyFormat>- Validations.
+    if (
+      typeof currencyFormat != "undefined" &&
+      currencyFormat != "₹" &&
+      currencyFormat != "$"
+    ) {
       return res.status(400).send({
         status: false,
-        message: "<currencyFormat> must be either <INR> OR <USD>.",
+        message: "<currencyFormat> must be either <₹> OR <$>.",
       });
     }
+    if (typeof currencyFormat != "undefined" && currencyFormat == "₹") {
+      if (typeof currencyId != "undefined") {
+        if (currencyId != "INR") {
+          return res.status(400).send({
+            status: false,
+            message:
+              "If <currencyFormat> is <₹> then <currencyId> must be <INR> only.",
+          });
+        }
+      } else {
+        data.currencyId = "INR";
+      }
+    }
+    if (typeof currencyFormat != "undefined" && currencyFormat == "$") {
+      if (typeof currencyId != "undefined") {
+        if (currencyId != "USD") {
+          return res.status(400).send({
+            status: false,
+            message:
+              "If <currencyFormat> is <$> then <currencyId> must be <USD> only.",
+          });
+        }
+      } else {
+        data.currencyId = "USD";
+      }
+    }
 
-    // const currencyFormat = "₹";   // $ also.????
-    if (currencyId && currencyId != "$" && currencyId != "₹") {
+    // <currencyId> - Validations.
+    if (
+      typeof currencyId != "undefined" &&
+      currencyId != "INR" &&
+      currencyId != "USD"
+    ) {
       return res.status(400).send({
         status: false,
-        message: "<currencyId> must be either <₹> OR <$>.",
+        message: "<currencyId> must be either <INR> OR <USD>.",
       });
     }
+    if (typeof currencyId != "undefined" && currencyId == "INR") {
+      if (typeof currencyFormat != "undefined") {
+        if (currencyFormat != "₹") {
+          return res.status(400).send({
+            status: false,
+            message:
+              "If <currencyId> is <INR> then <currencyFormat> must be <₹> only.",
+          });
+        }
+      } else {
+        data.currencyFormat = "₹";
+      }
+    }
+    if (typeof currencyId != "undefined" && currencyId == "USD") {
+      if (typeof currencyFormat != "undefined") {
+        if (currencyFormat != "$") {
+          return res.status(400).send({
+            status: false,
+            message:
+              "If <currencyId> is <USD> then <currencyFormat> must be <$> only.",
+          });
+        }
+      } else {
+        data.currencyFormat = "$";
+      }
+    }
 
-    // Check if <title> already present in Database.
+    // Check if <title> is already present in Database.
     if (title) {
       const titleExist = await productModel.findOne({ title });
       if (titleExist) {
@@ -593,7 +650,7 @@ const updateProductById = async (req, res) => {
       }
     }
 
-    // <file> Upload.
+    // Image-file Upload if present.
     if (files && files.length > 0) {
       if (!isValidImage(files[0].mimetype)) {
         return res.status(400).send({
@@ -606,27 +663,22 @@ const updateProductById = async (req, res) => {
       data.productImage = uploadedFileURL;
     }
 
-    // Update.
+    // Update the Product-document.
     const updateProduct = await productModel.findOneAndUpdate(
       { _id: productIdParams, isDeleted: false },
       data,
       { new: true }
     );
-    // if (!updateProduct) {
-    //   return res.status(404).send({
-    //     status: false,
-    //     message: `No Such PRODUCT with ID: <${productIdParams}> exist in Database(OR already deleted).`,
-    //   });
-    // }
 
     //- **Response format**
     //- **On success** - Return HTTP status 200. Also return the updated product document.
     //- **On error** - Return a suitable error message with a valid HTTP status code.
     return res.status(200).send({
       status: true,
-      message: "Product Updated.",
+      message: "Success",
       data: updateProduct,
     });
+    // message: "Product Updated.",
   } catch (error) {
     return res.status(500).send({ status: false, message: error.message });
   }

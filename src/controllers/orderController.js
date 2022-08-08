@@ -14,16 +14,20 @@ const {
 //-------------------------------------------------------------------------
 
 const createOrder = async (req, res) => {
-  //- Get cart details in the request body.
   try {
-    console.log("Create Order");
-
     const userIdParams = req.params.userId.trim();
-
     if (!isValidObjectId(userIdParams)) {
       return res.status(400).send({
         status: false,
         message: `userId in Params: <${userIdParams}> NOT a Valid Mongoose Object ID.`,
+      });
+    }
+    //- Make sure the user exist.
+    const findUser = await userModel.findById(userIdParams);
+    if (!findUser) {
+      return res.status(404).send({
+        status: false,
+        message: `USER with ID: <${userIdParams}> NOT Found in Database.`,
       });
     }
 
@@ -34,7 +38,47 @@ const createOrder = async (req, res) => {
         .send({ status: false, message: "Request Body Empty." });
     }
 
-    const { cancellable } = req.body;
+    // <cartId> Mandatory.
+    // <cancellable> default(true).
+    const { cartId, cancellable } = req.body;
+
+    // <cartId> Validations.
+    if (!isValid(cartId)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "<cartId> is required." });
+    }
+    if (!isValidObjectId(cartId)) {
+      return res.status(400).send({
+        status: false,
+        message: `cartId: <${cartId}> NOT a Valid Mongoose Object ID.`,
+      });
+    }
+
+    //- Make sure that cart exist.
+    findCart = await cartModel
+      .findOne({ _id: cartId, userId: userIdParams })
+      .select({ updatedAt: 0, createdAt: 0, __v: 0, _id: 0 })
+      .lean();
+
+    // If cart not found.
+    if (!findCart) {
+      return res.status(404).send({
+        status: false,
+        message: `CART with ID: <${cartId}> of USER: <${userIdParams}> NOT Found in Database.`,
+      });
+    }
+    // Send ERROR: IF No Products in Cart i.e. Cart Empty.
+    if (findCart.items.length == 0) {
+      return res.status(400).send({
+        status: false,
+        message: "Cart Empty: Add product(s) to Cart to create order.",
+      });
+    }
+    // Find Tota-Quantity of Items in Cart.
+    const totalQuantity = findCart.items.reduce((x, y) => {
+      return (x += y.quantity);
+    }, 0);
 
     if (cancellable) {
       if (!isValid(cancellable)) {
@@ -42,7 +86,6 @@ const createOrder = async (req, res) => {
           .status(400)
           .send({ status: false, message: "<cancellable>. can't be Empty." });
       }
-      //  && -> ||  ??
       if (cancellable !== "true" && cancellable !== "false") {
         return res.status(400).send({
           status: false,
@@ -51,52 +94,18 @@ const createOrder = async (req, res) => {
       }
     }
 
-    //- Make sure the user exist.
-    const findUser = await userModel.findById(userIdParams);
-    if (!findUser) {
-      return res.status(404).send({
-        status: false,
-        message: `USER with ID: <${userIdParams}> NOT Found in Database.`,
-      });
-    }
+    // Initialise <orderData> with Order Details.
+    let orderData = { ...findCart, cancellable, totalQuantity };
+    console.log("\n orderData \n", orderData);
 
     // Place Order.
-    findCart = await cartModel
-      .findOne({ userId: userIdParams })
-      .select({ updatedAt: 0, createdAt: 0, __v: 0, _id: 0 })
-      .lean();
-    if (!findCart) {
-      return res.status(404).send({
-        status: false,
-        message: `CART having userId: <${userIdParams}> NOT Found in Database.`,
-      });
-    }
-    // ERROR: IF No Products in Cart i.e. Cart Empty.
-    if (findCart.items.length == 0)
-      return res
-        .status(400) // 404 ?????????
-        .send({
-          status: false,
-          message: "Cart Empty: Add product(s) to Cart to create order.",
-        });
-
-    const totalQuantity = findCart.items.reduce((x, y) => {
-      return (x += y.quantity);
-    }, 0);
-
-    // console.log(findCart);
-    console.log("\n totalQuantity:  " + totalQuantity);
-
-    let orderData = { ...findCart, cancellable, totalQuantity };
-    // console.log(orderData);
-    // return res.send({ msg: "OK" });
-
     //- **On success** - Return HTTP status 200. Also return the order document.
     const createOrder = await orderModel.create(orderData);
 
+    // message: "Order Created Successfully.",
     res.status(201).send({
       status: true,
-      message: "Order Created Successfully.",
+      message: "Success",
       data: createOrder,
     });
 
@@ -117,10 +126,7 @@ const createOrder = async (req, res) => {
 //-------------------------------------------------------------------------
 
 const updateOrder = async (req, res) => {
-  //- Make sure that only a cancellable order could be canceled. Else send an appropriate error message and response.
   try {
-    console.log("Update Order");
-
     const userIdParams = req.params.userId.trim();
     if (!isValidObjectId(userIdParams)) {
       return res.status(400).send({
@@ -136,9 +142,9 @@ const updateOrder = async (req, res) => {
     }
 
     //- Get order id in request body.
-    const { orderId } = req.body;
+    const { orderId, status } = req.body;
 
-    // if (cancellable) {}
+    // <orderId> Validations.
     if (!isValid(orderId)) {
       return res
         .status(400)
@@ -148,6 +154,19 @@ const updateOrder = async (req, res) => {
       return res.status(400).send({
         status: false,
         message: `orderId: <${orderId}> NOT a Valid Mongoose Object ID.`,
+      });
+    }
+
+    // <status> can only be either <cancelled> or <completed>.
+    if (!isValid(status)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "<status> required." });
+    }
+    if (status != "cancelled" && status != "completed") {
+      return res.status(400).send({
+        status: false,
+        message: "<status> can be either <cancelled> or <completed> only.",
       });
     }
 
@@ -168,36 +187,57 @@ const updateOrder = async (req, res) => {
     if (!findOrder) {
       return res.status(404).send({
         status: false,
-        message: `userId: <${userIdParams}> has not created any Order with orderId : <${orderId}> (Order Not found in Database).`,
+        message: `userId: <${userIdParams}> has not created any Order with orderId : <${orderId}> (OR Order Not found in Database).`,
       });
     }
 
     //- Make sure that only a cancellable order could be canceled. Else send an appropriate error message and response.
     if (findOrder.cancellable === "false" || findOrder.cancellable === false) {
-      return res.status(400).send({
-        status: false,
-        message: `Can't cancel Order as <cancellable>: 'false'.`,
-      });
+      if (status == "cancelled") {
+        return res.status(400).send({
+          status: false,
+          message: `Can't cancel Order as <cancellable>: 'false'.`,
+        });
+      }
     }
+
+    // <status> in Document in Database.
     if (findOrder.status == "cancelled") {
       return res.status(400).send({
         status: false,
         message: `Order already cancelled (as <status>: 'cancelled').`,
       });
     }
+    if (findOrder.status == "completed") {
+      return res.status(400).send({
+        status: false,
+        message: `Order already completed (as <status>: 'completed').`,
+      });
+    }
 
-    // const updatedOrder = await orderModel.findOneAndUpdate({ _id: orderId }, { status: status }, { new: true })
+    let updatedOrder;
 
-    const updatedOrder = await orderModel.findByIdAndUpdate(
-      orderId,
-      { status: "cancelled" },
-      { new: true }
-    );
+    if (status == "cancelled") {
+      updatedOrder = await orderModel.findByIdAndUpdate(
+        orderId,
+        { status: "cancelled" },
+        { new: true }
+      );
+    }
+
+    if (status == "completed") {
+      updatedOrder = await orderModel.findByIdAndUpdate(
+        orderId,
+        { status: "completed" },
+        { new: true }
+      );
+    }
 
     //- **On success** - Return HTTP status 200. Also return the updated order document.
+    // message: "Order Updated Successfully.",
     return res.status(200).send({
       status: true,
-      message: "Order Updated Successfully.",
+      message: "Success",
       data: updatedOrder,
     });
   } catch (error) {

@@ -17,6 +17,7 @@ let uploadFile = async (file) => {
       Key: "Project-5-Products-Management-Group-37/" + file.originalname,
       Body: file.buffer,
     };
+
     console.log(uploadFile);
     s3.upload(uploadParams, function (err, data) {
       if (err) {
